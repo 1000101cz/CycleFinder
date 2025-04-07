@@ -11,9 +11,11 @@ CSV table is required as input defining the graph. Table contains columns `A`, `
 
 * `--start` is the id of the starting/ending node
 
-* `--min-nodes` minimum number of nodes in paths found
-[CycleFinder](target/debug/CycleFinder)
-* `--max-nodes` maximum number of nodes in paths found
+* `--min-nodes` minimum number of nodes in paths found **[default: 1]**
+
+* `--max-nodes` maximum number of nodes in paths found (0 for no limit) **[default: 0]**
+
+* `--max-paths` maximum number of paths to find - stop search when goal is met (0 for no limit) **[default: 0]**
 
 Paths found are printed to terminal as edge id sequences. Edges are separated with ` ` and paths with `\n`.
 

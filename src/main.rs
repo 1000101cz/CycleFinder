@@ -1,9 +1,3 @@
-// Tento soubor je skeleton Rust programu, který:
-// - Načte graf z CSV
-// - Mapuje vrcholy a hrany na indexy
-// - Připraví data pro CUDA
-// - Volá CUDA kernel, který hledá cykly
-
 use clap::Parser;
 use csv::ReaderBuilder;
 use serde::{Deserialize};
@@ -72,11 +66,14 @@ struct Args {
     min_nodes: u16,
 
     #[arg(long, default_value = "0")]
-    max_nodes: u16
+    max_nodes: u16,
+
+    #[arg(long, default_value = "0")]
+    max_paths: u32
 }
 
 fn create_graph(base_point: &Rc<RefCell<Node>>, map_nodes: &mut HashMap<u32, RefCell<Rc<RefCell<Node>>>>, mut map_edges: HashMap<u32, RefCell<Rc<RefCell<Edge>>>>, mut raw_edges: Vec<(u32, u32, u32)>) {
-    println!("\n=================\nCreating graph");
+    // println!("\n=================\nCreating graph");
     let mut edges_added: u32 = 0;
     let mut raw_edges_new: Vec<(u32, u32, u32)> = Vec::new();
     loop {
@@ -137,7 +134,7 @@ fn create_graph(base_point: &Rc<RefCell<Node>>, map_nodes: &mut HashMap<u32, Ref
                 edges_added += 1;
                 added_something = true;
                 if edges_added % 10000 == 0 {
-                    println!("edges added: {}", edges_added);
+                    // println!("edges added: {}", edges_added);
                 }
             } else {
                 raw_edges_new.push((*eid, *eid, *eid));
@@ -157,23 +154,28 @@ fn create_graph(base_point: &Rc<RefCell<Node>>, map_nodes: &mut HashMap<u32, Ref
         if !added_something {
             break;
         } else {
-            println!("Walkthrough X finished. Edges now: {}", edges_added);
+            // println!("Walkthrough X finished. Edges now: {}", edges_added);
         }
         raw_edges = raw_edges_new;
     }
 
-    println!("Finished, edges added: {}", edges_added);
-    println!("Graph created\n=================\n");
+    // println!("Finished, edges added: {}", edges_added);
+    // println!("Graph created\n=================\n");
 }
 
-fn dfs1(current_node: Rc<RefCell<Node>>, visited: Vec<u32>, edges_used: Vec<u32>, target_id: u32, min_nodes: u16, max_nodes: u16) {
+fn dfs1(current_node: Rc<RefCell<Node>>, visited: Vec<u32>, edges_used: Vec<u32>, target_id: u32, min_nodes: u16, max_nodes: u16, max_paths: u32, paths_found: &mut u32) {
     if edges_used.len() >= max_nodes as usize {
+        return;
+    }
+
+    if max_paths != 0 && *paths_found >= max_paths {
         return;
     }
 
     let current_id = current_node.borrow().id;
     if current_id == target_id && visited.len() > 1 && visited.len() >= (min_nodes - 1) as usize {
         // we got this, this is the end...
+        *paths_found += 1;
         for edge in &edges_used {
             print!("{} ", edge);
         }
@@ -195,14 +197,17 @@ fn dfs1(current_node: Rc<RefCell<Node>>, visited: Vec<u32>, edges_used: Vec<u32>
              edges_used.iter().copied().chain(std::iter::once(edge_id)).collect(),
              target_id,
              min_nodes,
-             max_nodes);
+             max_nodes,
+             max_paths,
+             paths_found);
     }
 }
 
-fn find_elementary_cycles(the_vertex: Rc<RefCell<Node>>, min_nodes: u16, max_nodes: u16) {
+fn find_elementary_cycles(the_vertex: Rc<RefCell<Node>>, min_nodes: u16, max_nodes: u16, max_paths: u32) {
+    let mut paths_found: u32 = 0;
     let max_nodes_r = if max_nodes == 0 {u16::MAX} else {max_nodes};
     let target_id = the_vertex.borrow().id;
-    dfs1(the_vertex, Vec::new(), Vec::new(), target_id, min_nodes, max_nodes_r);
+    dfs1(the_vertex, Vec::new(), Vec::new(), target_id, min_nodes, max_nodes_r, max_paths, &mut paths_found);
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -225,18 +230,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let min_nodes = args.min_nodes;
     let max_nodes = args.max_nodes;
+    let max_paths = args.max_paths;
     let mut base_point = Rc::new(RefCell::new(Node::new(args.start)));
     let mut map_nodes: HashMap<u32, RefCell<Rc<RefCell<Node>>>> = HashMap::new();
     let mut map_edges: HashMap<u32, RefCell<Rc<RefCell<Edge>>>> = HashMap::new();
 
-    println!("num_edges: {}", num_edges);
-    println!("num_nodes: {}", num_nodes);
+    // println!("num_edges: {}", num_edges);
+    // println!("num_nodes: {}", num_nodes);
 
     create_graph(&base_point, &mut map_nodes, map_edges, raw_edges);
 
     let new_base_point = map_nodes.get(&base_point.borrow().id).unwrap().borrow().clone();
 
-    find_elementary_cycles(new_base_point, min_nodes, max_nodes);
+    find_elementary_cycles(new_base_point, min_nodes, max_nodes, max_paths);
 
     Ok(())
 }
